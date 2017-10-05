@@ -17,8 +17,7 @@ Ou se quiser uma compilação mais detalhada :
 
    
 Ou você pode fazer também :  
-	mpirun -np 4  Nome_do_arquivo 
-	
+
 	 mpirun -np 4  Nome_do_arquivo 
 
  
