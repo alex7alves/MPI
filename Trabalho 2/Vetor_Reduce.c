@@ -1,6 +1,6 @@
 
 /* Autor : Alex Alves
-   Programa para calcular soma em arvore com qualquer numero de processos 
+   Programa para calcular soma de numero de um vetor com processos 
    e qualquer tamanho do vetor e calcular o seu tempo de execucao
 
    execute assim :
@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
    int size; // quantidade maxima de processos
    int rank;  // numero do  processo atual
    int n =atoi(argv[1]); // tamanho do vetor passado
-   int vetor[n],local,divisor=2,difference=1,soma; 
+   int vetor[n],local,divisor=2,difference=1,soma,somaFinal=0; 
 
    int local_n, local_a, local_b;
    MPI_Status stat; // guarda o status 
@@ -83,45 +83,14 @@ int main(int argc, char *argv[]) {
    }
    // inicia a contagem de tempo ->inicio da arvore
    inicio= MPI_Wtime();
-
-   for(int j=1;j<=lg;j++){
-      for(int IndiceCore=0;IndiceCore<size ;IndiceCore= IndiceCore+divisor) {  
-         //(IndiceCore+difference)<size pra nao dar erro de enviar para numero inxistente
-         //tipo ta no rank 8 e envia pro 16 mas no maximo eh 14
-         if(rank==(IndiceCore+difference) && (IndiceCore+difference)<size){  
-            MPI_Send(&valor[IndiceCore+difference],1,MPI_INT,IndiceCore,0,MPI_COMM_WORLD);    
-         }else if(QuantidadeCoreExecutando%2!=0 && IndiceCore==IndiceUltimoCoreExecucao){
-            // se for impar manda o ultimo processo para a proxima 
-            // linha da arvore
-            MPI_Send(&valor[IndiceUltimoCoreExecucao],1,MPI_INT,IndiceUltimoCoreExecucao,0,MPI_COMM_WORLD);
-            
-         }else if(rank==IndiceCore &&  (IndiceCore+difference)<size) {
-            // rank pares
-            MPI_Recv(&local,1,MPI_INT,IndiceCore+difference,0,MPI_COMM_WORLD,&stat);
-            valor[IndiceCore]=valor[IndiceCore]+local;
-         }else if(QuantidadeCoreExecutando%2!=0 && IndiceCore==IndiceUltimoCoreExecucao){
-            // se for impar equilibra a arvore 
-            MPI_Recv(&local,1,MPI_INT,IndiceUltimoCoreExecucao,0,MPI_COMM_WORLD,&stat);
-            valor[IndiceUltimoCoreExecucao]=valor[IndiceUltimoCoreExecucao];
-            QuantidadeCoreExecutando= QuantidadeCoreExecutando+1;
-            IndiceUltimoCoreExecucao =IndiceUltimoCoreExecucao;
-         }         
-      }
-      divisor = divisor*2;
-      difference = difference *2;
-      QuantidadeCoreExecutando=QuantidadeCoreExecutando/2;
-      IndiceUltimoCoreExecucao =IndiceUltimoCoreExecucao-aux;
-      if(QuantidadeCoreExecutando>1 && j==lg){
-         lg=lg+1;
-      }
-   }
+   MPI_Reduce(&valor[rank],&somaFinal,1,MPI_INT,MPI_SUM,0,MPI_COMM_WORLD);
    // Fim da arvore
    fim= MPI_Wtime();
    // calcula a duracao
    duracao=fim-inicio;
    MPI_Reduce(&duracao,&tempo,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
    if(rank==0){
-         printf("O processo %d terminou com o valor %d\n",rank,valor[0]); 
+         printf("A soma foi  %d\n",somaFinal); 
          printf("Tempo medido: %lf\n",tempo);
    }
    MPI_Finalize(); 
