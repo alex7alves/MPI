@@ -23,10 +23,11 @@
  *    2. Define DEBUG for verbose output
  *
  * IPP:      Section 3.4.9 (pp. 113 and ff.)
+ *
+   Modificado por Alex Alves 
+   para multiplicar matriz por vetor
+   pegando as colunas em vez das linhas
 
-	Modificado por Alex Alves 
-	para multiplicar matriz por vetor
-	pegando as colunas em vez das linhas
 
 
 
@@ -35,13 +36,14 @@
 #include <stdlib.h>
 #include <mpi.h>
 
+
 void Check_for_error(int local_ok, char fname[], char message[], 
       MPI_Comm comm);
 void Get_dims(int* m_p, int* local_m_p, int* n_p, int* local_n_p,
       int my_rank, int comm_sz, MPI_Comm comm);
-// inerindo y e m
+// inerindo y_pp e m
 void Allocate_arrays(double** local_A_pp, double** local_x_pp, 
-      double** local_y_pp,double**y, int local_m, int n,int m, int local_n, 
+      double** local_y_pp, double** y_pp,int local_m, int m, int local_n, 
       MPI_Comm comm);
 // trocando local_m por local_n
 void Read_matrix(char prompt[], double local_A[], int m, int local_n, 
@@ -54,7 +56,7 @@ void Print_vector(char title[], double local_vec[], int n,
       int local_n, int my_rank, MPI_Comm comm);
 // inserindo y e inserindo m
 void Mat_vect_mult(double local_A[], double local_x[], 
-      double local_y[],double y[], int local_m, int m,int n, int local_n, 
+      double local_y[], double y[],int local_m, int m, int local_n, 
       MPI_Comm comm);
 
 /*-------------------------------------------------------------------*/
@@ -63,41 +65,47 @@ int main(void) {
    double* local_x;
    double* local_y;
    double* y;
-   int m, local_m, n, local_n;
+   int m, local_m, n, local_n,k;
    int my_rank, comm_sz;
+   double start, finish, elapse;
    MPI_Comm comm;
 
    MPI_Init(NULL, NULL);
    comm = MPI_COMM_WORLD;
    MPI_Comm_size(comm, &comm_sz);
    MPI_Comm_rank(comm, &my_rank);
-
    Get_dims(&m, &local_m, &n, &local_n, my_rank, comm_sz, comm);
-   Allocate_arrays(&local_A, &local_x, &local_y,&y, local_m, n,m, local_n, comm);
-   Read_matrix("A", local_A, m, local_m, n, my_rank, comm);
-#  ifdef DEBUG
-   Print_matrix("A", local_A, m, local_n, n, my_rank, comm);
-#  endif
+   Allocate_arrays(&local_A, &local_x, &local_y, &y,local_m, m, local_n, comm);
+   Read_matrix("A", local_A, m, local_n, n, my_rank, comm);
    Read_vector("x", local_x, n, local_n, my_rank, comm);
-#  ifdef DEBUG
-   Print_vector("x", local_y, n, local_n, my_rank, comm);
-#  endif
 
-   Mat_vect_mult(local_A, local_x, local_y,y, local_m, m,n, local_n, comm);
+   MPI_Barrier(comm);
+   start = MPI_Wtime();
+   Mat_vect_mult(local_A, local_x, local_y, y,local_m, m, local_n, comm);
+   finish = MPI_Wtime();
+   finish = finish-start;
+   MPI_Reduce(&finish,&elapse,1,MPI_DOUBLE,MPI_MAX,0,comm);   
 
-  // Nao usa pois nao tem elementos separados para unir
+   if(my_rank == 0){
+      printf(" O tempo foi : %lf\n",elapse);
+   }
+
+    // Nao usa pois nao tem elementos separados para unir
   // Print_vector("y", local_y, m, local_m, my_rank, comm);
-   if(my_rank==0){
-   	  printf("O vetor resultante foi \n");
+
+   // Mostrando o resultado
+  /* if(my_rank==0){
+        printf("O vetor resultante foi \n");
       for (int k = 0; k < n; k++){
         printf(" %lf ",y[k]);
        }
        printf("\n");
-   }
-   
+   }*/
+
    free(local_A);
    free(local_x);
    free(local_y);
+   free(y);
    MPI_Finalize();
    return 0;
 }  /* main */
@@ -171,10 +179,12 @@ void Get_dims(
    int local_ok = 1;
 
    if (my_rank == 0) {
-      printf("Enter the number of rows\n");
-      scanf("%d", m_p);
-      printf("Enter the number of columns\n");
-      scanf("%d", n_p);
+      //printf("Enter the number of rows\n");
+      //scanf("%d", m_p);
+      *m_p = 1024*16;
+      //printf("Enter the number of columns\n");
+      //scanf("%d", n_p);
+      *n_p = 1024*16;
    }
    MPI_Bcast(m_p, 1, MPI_INT, 0, comm);
    MPI_Bcast(n_p, 1, MPI_INT, 0, comm);
@@ -210,22 +220,22 @@ void Allocate_arrays(
       double**  local_A_pp  /* out */, 
       double**  local_x_pp  /* out */, 
       double**  local_y_pp  /* out */, 
-	  double**  y  /* out  novo*/, 
+      double**  y_pp        /* out */,
       int       local_m     /* in  */, 
-      int       n 			/* in  */,
-      int 		m          /* in novo */,   
+      int       m           /* in  */,   
       int       local_n     /* in  */, 
       MPI_Comm  comm        /* in  */) {
 
    int local_ok = 1;
 
-   *local_A_pp = malloc(local_m*n*sizeof(double));
+   *local_A_pp = malloc(local_n*m*sizeof(double));
    *local_x_pp = malloc(local_n*sizeof(double));
-   *local_y_pp = malloc(local_m*sizeof(double));
-   // alocando y
-   *y = malloc(m*sizeof(double));
+   *local_y_pp = malloc(m*sizeof(double));
+   // alocando y (y_pp)
+   *y_pp = malloc(m*sizeof(double));
+
    if (*local_A_pp == NULL || local_x_pp == NULL ||
-         local_y_pp == NULL) local_ok = 0;
+         local_y_pp == NULL || y_pp == NULL) local_ok = 0;
    Check_for_error(local_ok, "Allocate_arrays",
          "Can't allocate local arrays", comm);
 }  /* Allocate_arrays */
@@ -263,33 +273,44 @@ void Read_matrix(
    int i, j;
    // criando Datatype para poder pegar
    // os elemnetos das colunas corretamente
-   MPI_Datatype col, tipoCol;
+   MPI_Datatype col, coltype;
 
    MPI_Type_vector(m, 1, n, MPI_DOUBLE, &col);
    MPI_Type_commit(&col);
-   MPI_Type_create_resized(col, 0, 1*sizeof(double), &tipoCol);
-   MPI_Type_commit(&tipoCol);
+   MPI_Type_create_resized(col, 0, 1*sizeof(double), &coltype);
+   MPI_Type_commit(&coltype);
+ 
    if (my_rank == 0) {
       A = malloc(m*n*sizeof(double));
       if (A == NULL) local_ok = 0;
       Check_for_error(local_ok, "Read_matrix",
             "Can't allocate temporary matrix", comm);
-      printf("Enter the matrix %s\n", prompt);
-      for (i = 0; i < m; i++)
-         for (j = 0; j < n; j++)
-            scanf("%lf", &A[i*n+j]);
-      // Muda pra tipo 'tipoCol' e Paassarso local_n pois m elemntos serao encapsulados
+   //   printf("Enter the matrix %s\n", prompt);
+      for (i = 0; i < m; i++){
+         for (j = 0; j < n; j++){
+             A[i*n + j]=i+1;
+           // scanf("%lf", &A[i*n+j]);
+         }
+          //printf("\n");
+      }
+
+      // Muda pra tipo 'coltype' e Paassar so local_n pois m elemntos serao encapsulados
       //para envio da n colunas, logo deve enviar local_n 
       //mas recebe local_m*n
-      MPI_Scatter(A, local_n, tipoCol, 
-            local_A, local_n*m, MPI_DOUBLE, 0, comm);
+      MPI_Scatter(A, local_n, coltype,
+              local_A, local_n*m, MPI_DOUBLE,
+              0, comm);
       free(A);
    } else {
       Check_for_error(local_ok, "Read_matrix",
             "Can't allocate temporary matrix", comm);
-      MPI_Scatter(A, local_n, tipoCol, 
-            local_A, local_n*m, MPI_DOUBLE, 0, comm);
+      MPI_Scatter(A, local_n, coltype,
+              local_A, local_n*m, MPI_DOUBLE,
+              0, comm);
    }
+   MPI_Type_free(&col);
+   MPI_Type_free(&coltype);
+   
 }  /* Read_matrix */
 
 /*-------------------------------------------------------------------
@@ -322,9 +343,11 @@ void Read_vector(
       if (vec == NULL) local_ok = 0;
       Check_for_error(local_ok, "Read_vector",
             "Can't allocate temporary vector", comm);
-      printf("Enter the vector %s\n", prompt);
-      for (i = 0; i < n; i++)
-         scanf("%lf", &vec[i]);
+  //    printf("Enter the vector %s\n", prompt);
+      for (i = 0; i < n; i++){
+            vec[i]= i+1;
+            //scanf("%lf", &vec[i]);
+      }
       MPI_Scatter(vec, local_n, MPI_DOUBLE,
             local_vec, local_n, MPI_DOUBLE, 0, comm);
       free(vec);
@@ -451,34 +474,25 @@ void Mat_vect_mult(
       double    local_A[]  /* in  */, 
       double    local_x[]  /* in  */, 
       double    local_y[]  /* out */,
-      double    y[]        /* novo*/,
+      double    y[]        /* out */,
       int       local_m    /* in  */, 
-      int       m          /*n trocado por m */,
-	   int      n,
+      int       m          /* in  */,
       int       local_n    /* in  */,
       MPI_Comm  comm       /* in  */) {
    int local_i, j;
-   int local_ok = 1;
     // Garantindo que nao tera lixo
-    for (j = 0; j < m; j++){
+   for (j = 0; j < m; j++){
       local_y[j] = 0;
-    }
-    /* pega cada coluna e multiplica por parte do vetor
+   }
+   /* pega cada coluna e multiplica por parte do vetor
        primeira coluna x primeiro elemento
        segunda coluna x segundo elemento
-    */   
-   // printf(" processo z\n");
+    */ 
    for (local_i = 0; local_i < local_n; local_i++) {
       for (j = 0; j < m; j++){
          local_y[j] += local_A[local_i*m+j]*local_x[local_i];
-      	//printf("local y = %lf\n",local_y[j]);
       }
-
-    }
-
-  
-    // Depois somaa os resultados por posicao e insere no vetor final
-    MPI_Reduce(local_y,y,n, MPI_DOUBLE, MPI_SUM,0, comm);
-    
-    //printf("y = %lf\n",y);
+   }
+     // Depois somaa os resultados por posicao e insere no vetor final
+   MPI_Reduce(local_y, y, m, MPI_DOUBLE, MPI_SUM,0, comm);
 }  /* Mat_vect_mult */
