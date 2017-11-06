@@ -4,7 +4,7 @@
    e qualquer tamanho do vetor e calcular o seu tempo de execucao
 
    execute assim :
-   mpiexec -n p ./arvore_completa x (tamanho do vetor -> soma de 1 ate x)
+   mpiexec -n p ./arvore_tempo x (tamanho do vetor -> soma de 1 ate x)
 */
 #include <stdio.h>
 #include <stdlib.h>
@@ -119,7 +119,7 @@ int main(int argc, char *argv[]) {
    fim= MPI_Wtime();
    // calcula a duracao
    duracao=fim-inicio;
-   MPI_Reduce(&duracao,&tempo,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+   MPI_Reduce(&duracao,&tempo,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
    if(rank==0){
          printf("O processo %d terminou com o valor %d\n",rank,valor[0]); 
          printf("Tempo medido: %lf\n",tempo);

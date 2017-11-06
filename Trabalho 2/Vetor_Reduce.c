@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
    fim= MPI_Wtime();
    // calcula a duracao
    duracao=fim-inicio;
-   MPI_Reduce(&duracao,&tempo,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+   MPI_Reduce(&duracao,&tempo,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
    if(rank==0){
          printf("A soma foi  %d\n",somaFinal); 
          printf("Tempo medido: %lf\n",tempo);
